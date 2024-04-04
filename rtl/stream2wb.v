@@ -14,8 +14,12 @@ module stream2wb #(
 
 	// auto
 	parameter integer DL = (32*WB_N)-1,
-	parameter integer CL = WB_N-1
-)(
+	parameter integer CL = WB_N-1,
+
+	parameter block_read_support = 1,
+	parameter read_16_bit = 1
+
+)(		
 	// Stream interface for command/response
 	input  wire  [7:0] rx_data,
 	input  wire        rx_valid,
@@ -47,7 +51,8 @@ module stream2wb #(
 		CMD_REG_ACCESS  = 4'h1,
 		CMD_DATA_SET    = 4'h2,
 		CMD_DATA_GET    = 4'h3,
-		CMD_AUX_CSR     = 4'h4;
+		CMD_AUX_CSR     = 4'h4,
+		CMD_BLOCK_SETUP  = 4'h5;
 
 
 	// Signals
@@ -60,6 +65,11 @@ module stream2wb #(
 	wire [ 3:0] cmd_code;
 	wire [31:0] cmd_data;
 	reg         cmd_stb;
+	
+	reg [15:0] block_words;
+	reg is_block_transfer;
+	reg block_increment;
+	reg [CL:0] wb_cyc_save;
 
 	// Response TX
 	wire        tx_ack;
@@ -102,7 +112,7 @@ module stream2wb #(
 			tx_cnt <= 3'd0;
 		else begin
 			if (resp_ld)
-				tx_cnt <= 3'd4;
+				tx_cnt <= 3'd4 - 2*read_16_bit;
 			else if (tx_ack)
 				tx_cnt <= tx_cnt - 1;
 		end
@@ -113,10 +123,16 @@ module stream2wb #(
 		else if (tx_ack)
 			tx_reg <= { tx_reg[23:0], 8'h00 };
 
-	assign tx_data  = tx_reg[31:24];
+	assign tx_data  = tx_reg[31-16*read_16_bit:24-16*read_16_bit];
 	assign tx_last  = (tx_cnt == 3'd1);
 	assign tx_valid = |tx_cnt;
 	assign tx_ack   = tx_valid & tx_ready;
+	
+	reg tx_valid_last;
+	always @(posedge clk) begin
+		tx_valid_last <= tx_valid;
+	end
+	wire tx_done_edge = !tx_valid && (tx_valid != tx_valid_last);
 
 	// Commands
 	always @(posedge clk)
@@ -129,7 +145,7 @@ module stream2wb #(
 		if (cmd_stb) begin
 			case (cmd_code)
 				CMD_SYNC: begin
-					resp_data <= 432'hcafebabe;
+					resp_data <= 32'hcafebabe;
 					resp_ld   <= 1'b1;
 				end
 
@@ -137,6 +153,7 @@ module stream2wb #(
 					wb_addr  <=  cmd_data[15:0];
 					wb_we    <= ~cmd_data[20];
 					wb_cyc   <= (1 << cmd_data[19:16]);
+					wb_cyc_save   <= (1 << cmd_data[19:16]);
 				end
 
 				CMD_DATA_SET: begin
@@ -151,21 +168,48 @@ module stream2wb #(
 				CMD_AUX_CSR: begin
 				    aux_csr <= cmd_data;
 				end
+
+				CMD_BLOCK_SETUP: begin
+					if(block_read_support) begin
+						block_words  		<= cmd_data[15:0];
+						block_increment		<= cmd_data[16];
+						is_block_transfer 	<= 1;
+					end
+				end
 			endcase
 		end
+
+		
 
 		if (wb_ack_i) begin
 			// Cycle done
 			wb_cyc <= 0;
 
 			// Capture read response
-			if (~wb_we)
+			if (~wb_we) begin
 				wb_wdata <= wb_rdata_i;
+
+				if(is_block_transfer) begin // directly send off 
+					resp_data <= wb_rdata_i;
+					resp_ld   <= 1'b1;
+				end
+			end
+		end
+
+		if(is_block_transfer && tx_done_edge) begin 
+			if(block_words) begin
+				block_words <= block_words - 1;
+				wb_addr <= wb_addr + block_increment;
+				wb_cyc <= wb_cyc_save;
+			end else begin
+				is_block_transfer <= 0;
+			end			
 		end
 
 		if (rst) begin
 			wb_cyc   <= 0;
 			aux_csr  <= 32'h00000000;
+			is_block_transfer <= 0;
 		end
 	end
 

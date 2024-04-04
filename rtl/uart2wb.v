@@ -57,7 +57,7 @@ module uart2wb #(
 
 	uart_rx #(
 		.DIV_WIDTH(DIV_WIDTH),
-		.GLITCH_FILTER(0)
+		.GLITCH_FILTER(2)
 	) rx_I (
 		.rx   (uart_rx),
 		.data (rx_data),
