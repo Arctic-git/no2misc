@@ -15,7 +15,10 @@ module uart2wb #(
 
 	// auto
 	parameter integer DL = (32*WB_N)-1,
-	parameter integer CL = WB_N-1
+	parameter integer CL = WB_N-1,
+
+	parameter block_read_support = 0,
+	parameter read_16_bit = 0
 )(
 	// UART
 	input  wire        uart_rx,
@@ -84,7 +87,9 @@ module uart2wb #(
 	// ---------------
 
 	stream2wb #(
-		.WB_N(WB_N)
+		.WB_N(WB_N),
+		.block_read_support(block_read_support),
+		.read_16_bit(read_16_bit)
 	) wb_I (
 		.rx_data  (rx_data),
 		.rx_valid (rx_stb),

@@ -16,8 +16,8 @@ module stream2wb #(
 	parameter integer DL = (32*WB_N)-1,
 	parameter integer CL = WB_N-1,
 
-	parameter block_read_support = 1,
-	parameter read_16_bit = 1
+	parameter block_read_support = 0,
+	parameter read_16_bit = 0
 
 )(		
 	// Stream interface for command/response
@@ -68,7 +68,7 @@ module stream2wb #(
 	
 	reg [15:0] block_words;
 	reg is_block_transfer;
-	reg block_increment;
+	reg block_increment = 0;
 	reg [CL:0] wb_cyc_save;
 
 	// Response TX
