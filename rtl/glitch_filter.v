@@ -16,7 +16,7 @@ module glitch_filter #(
 	parameter integer WITH_SAMP_COND = 0,
 	parameter integer WITH_EVT_COND = 0
 )(
-	input wire  in,
+	input wire  val_in,
 	input wire  samp_cond,	// Sampling condition
 	input wire  evt_cond,	// Event condition
 
@@ -51,10 +51,10 @@ module glitch_filter #(
 	// Synchronizer
 	if (WITH_SYNCHRONIZER)
 		always @(posedge clk)
-			sync <= { sync[0], in };
+			sync <= { sync[0], val_in };
 	else
 		always @(*)
-			sync = { in, in };
+			sync = { val_in, val_in };
 
 	// Filter
 	always @(*)
