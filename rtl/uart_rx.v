@@ -39,7 +39,7 @@ module uart_rx #(
 				.RST_VAL(1'b1),
 				.WITH_SYNCHRONIZER(1)
 			) gf_I (
-				.in(rx),
+				.val_in(rx),
 				.val(rx_val),
 				.rise(),
 				.fall(rx_fall),
